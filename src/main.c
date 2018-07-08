@@ -128,12 +128,13 @@ static int cmd_mode=CMODE_ALL; /**both clipboards  */
 #define EDIT_MODE_RC_EDIT_SET 2 /**used to   */                                    
 
 /**speed up pref to int lookup.  */
-int hyperlinks_only,ignore_whiteonly,trim_newline,trim_wspace_begend,use_primary,use_copy,current_on_top,restore_empty,synchronize;
+int hyperlinks_only,ignore_whiteonly,trim_newline,trim_wspace_begend,trim_clever,use_primary,use_copy,current_on_top,restore_empty,synchronize;
 static struct pref2int pref2int_map[]={
 	{.val=&hyperlinks_only,.name="hyperlinks_only"},
 	{.val=&ignore_whiteonly,.name="ignore_whiteonly"},
 	{.val=&trim_newline,.name="trim_newline"},
 	{.val=&trim_wspace_begend,.name="trim_wspace_begend"},
+	{.val=&trim_clever,.name="trim_clever"},
 	{.val=&use_primary,.name="use_primary"},
 	{.val=&use_copy,.name="use_copy"},
 	{.val=&current_on_top,.name="current_on_top"},
@@ -223,7 +224,35 @@ gchar *process_new_item(GtkClipboard *clip,gchar *ntext, int *mod)
 					++i;	
 			}
 		}
-		
+
+		if (trim_clever) {
+			gchar *s;
+			GRegex* regex;
+
+			s = ntext;
+
+			regex = g_regex_new("\\A\\s*\\n", 0, 0, NULL);
+			s = g_regex_replace_literal(regex, s, validate_utf8_text(s, strlen(s)), 0, "", 0, NULL);
+			g_regex_unref(regex);
+
+			regex = g_regex_new("\n\\s*\\z", 0, 0, NULL);
+			s = g_regex_replace_literal(regex, s, validate_utf8_text(s, strlen(s)), 0, "", 0, NULL);
+			g_regex_unref(regex);
+
+			regex = g_regex_new("\\s+$", G_REGEX_MULTILINE, 0, NULL);
+			s = g_regex_replace_literal(regex, s, validate_utf8_text(s, strlen(s)), 0, "", 0, NULL);
+			g_regex_unref(regex);
+
+			if (g_utf8_strchr(s, -1, '\n') == NULL)
+			{	g_fprintf(stderr, "single line => stripping!\n");
+				s = g_strstrip(s);
+			}
+
+			g_utf8_strncpy(ntext, s, validate_utf8_text(s, strlen(s)));
+
+			++i;
+			*mod=1;
+		}
 	}else
 		++i;
 	if(NULL != mod ){
